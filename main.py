@@ -187,7 +187,7 @@ df_test = df_test.rename(columns={0:'best',1:'obs',2:'pred'})
 ################################################ Figures 
 
 ##################
-# Figure 5
+# Figure 6
 ##################
 
 model_no_z=pd.DataFrame([np.log((model.iloc[:,1]+1)/(model.iloc[:,2]+1)),np.log((model.iloc[:,0]+1)/(model.iloc[:,2]+1))])
@@ -227,7 +227,7 @@ sns.despine(offset = 5, trim = True)
 plt.show()
 
 ##################
-# Figure 6
+# Figure 7
 ##################
 
 # Define custom colormap colors
@@ -520,7 +520,7 @@ plt.show()
 
 
 ##################
-# Figure 4
+# Figure 5
 ##################
 
 def draw_plot(data, position, color='k'):
@@ -597,187 +597,187 @@ for hor in range(3):
 # =============================================================================
 # Not in the paper 
 # =============================================================================
-best_sd=[]
-# Plotting loop
-for col in range(76):
-    if (not (df_migra.iloc[-9:-3,col] == 0).all()) :
-        shape = Shape()
-        shape.set_shape(df_migra.iloc[-9:-3,col]) 
-        shape_cov1 = Shape()
-        shape_cov1.set_shape(df_fp.iloc[-9:-3,col]) 
-        shape_cov2 = Shape()
-        shape_cov2.set_shape(df_conf.iloc[-9:-3,col]) 
-        shape_cov = [shape_cov1,shape_cov2]
+# best_sd=[]
+# # Plotting loop
+# for col in range(76):
+#     if (not (df_migra.iloc[-9:-3,col] == 0).all()) :
+#         shape = Shape()
+#         shape.set_shape(df_migra.iloc[-9:-3,col]) 
+#         shape_cov1 = Shape()
+#         shape_cov1.set_shape(df_fp.iloc[-9:-3,col]) 
+#         shape_cov2 = Shape()
+#         shape_cov2.set_shape(df_conf.iloc[-9:-3,col]) 
+#         shape_cov = [shape_cov1,shape_cov2]
         
-        find = finder_multi(data,cov,shape,shape_cov)
-        find.find_patterns(min_d=3,select=True,metric='dtw')
-        pred_ori = find.predict(horizon=3,plot=False,mode='mean')
-        df_fill = pd.DataFrame([shape.values[-1],shape.values[-1],shape.values[-1]])
-        df_fill= df_fill.T
-        df_fill.columns = pred_ori.columns
-        pred = pd.concat([df_fill,pred_ori],axis=0)
-        pred.index = df_migra.iloc[-4:,col].index
-        pred_ori = pred_ori*(df_migra.iloc[-9:-3,col].max()-df_migra.iloc[-9:-3,col].min())+df_migra.iloc[-9:-3,col].min()
-        te = (df_migra.iloc[-9:-3,col] - df_migra.iloc[-9:-3,col].min()) / (df_migra.iloc[-9:-3,col].max()-df_migra.iloc[-9:-3,col].min())
+#         find = finder_multi(data,cov,shape,shape_cov)
+#         find.find_patterns(min_d=3,select=True,metric='dtw')
+#         pred_ori = find.predict(horizon=3,plot=False,mode='mean')
+#         df_fill = pd.DataFrame([shape.values[-1],shape.values[-1],shape.values[-1]])
+#         df_fill= df_fill.T
+#         df_fill.columns = pred_ori.columns
+#         pred = pd.concat([df_fill,pred_ori],axis=0)
+#         pred.index = df_migra.iloc[-4:,col].index
+#         pred_ori = pred_ori*(df_migra.iloc[-9:-3,col].max()-df_migra.iloc[-9:-3,col].min())+df_migra.iloc[-9:-3,col].min()
+#         te = (df_migra.iloc[-9:-3,col] - df_migra.iloc[-9:-3,col].min()) / (df_migra.iloc[-9:-3,col].max()-df_migra.iloc[-9:-3,col].min())
         
-        std_l_fake = (pred.iloc[:, 2] - pred.iloc[:, 0])* np.sqrt(len(find.sequences)) / 1.96
-        best_sd.append([col,std_l_fake.mean()])
+#         std_l_fake = (pred.iloc[:, 2] - pred.iloc[:, 0])* np.sqrt(len(find.sequences)) / 1.96
+#         best_sd.append([col,std_l_fake.mean()])
 
-best_sd=pd.DataFrame(best_sd)
-best_sd=best_sd.sort_values([1])
+# best_sd=pd.DataFrame(best_sd)
+# best_sd=best_sd.sort_values([1])
 
-fig = plt.figure(figsize=(30, 18))
-num_rows = 7
-num_cols = 9
-width_ratios = [0.75, 2, 0.5]*3
-hei_ratio = [1,0.5]*3+[1]
-gs = GridSpec(num_rows, num_cols, figure=fig, width_ratios=width_ratios,height_ratios=hei_ratio)
-def configure_ax(ax):
-    ax.set(xticks=[], yticks=[])
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-
-
-row=0
-colu=0
-c_tot=0
-for col in best_sd[:9][0]:
-    if (not (df_migra.iloc[-9:-3,col] == 0).all()) & (row<8) :
-        shape = Shape()
-        shape.set_shape(df_migra.iloc[-9:-3,col]) 
-        shape_cov1 = Shape()
-        shape_cov1.set_shape(df_fp.iloc[-9:-3,col]) 
-        shape_cov2 = Shape()
-        shape_cov2.set_shape(df_conf.iloc[-9:-3,col]) 
-        shape_cov = [shape_cov1,shape_cov2]
-        
-        find = finder_multi(data,cov,shape,shape_cov)
-        find.find_patterns(min_d=3,select=True,metric='dtw')
-        pred_ori = find.predict(horizon=3,plot=False,mode='mean')
-        df_fill = pd.DataFrame([shape.values[-1],shape.values[-1],shape.values[-1]])
-        df_fill= df_fill.T
-        df_fill.columns = pred_ori.columns
-        pred = pd.concat([df_fill,pred_ori],axis=0)
-        pred.index = df_migra.iloc[-4:,col].index
-        pred_ori = pred_ori*(df_migra.iloc[-9:-3,col].max()-df_migra.iloc[-9:-3,col].min())+df_migra.iloc[-9:-3,col].min()
-        te = (df_migra.iloc[-9:-3,col] - df_migra.iloc[-9:-3,col].min()) / (df_migra.iloc[-9:-3,col].max()-df_migra.iloc[-9:-3,col].min())
-        
-        std_l_fake = (pred.iloc[:, 2] - pred.iloc[:, 0])* np.sqrt(len(find.sequences)) / 1.96
-        ax_shape =fig.add_subplot(gs[row, colu+1])
-        ax_shape.plot(te,color='black',linewidth=3)
-        ax_shape.plot(pred.iloc[:,0],color='red',linewidth=3)
-        ax_shape.fill_between(pred.index,pred.iloc[:,0]-std_l_fake,pred.iloc[:,0]+std_l_fake,color='red',alpha=0.3)
-        #ax_shape.set_ylim(-0.2,1.2)
-        ax_shape.grid('y')
-        ax_shape.spines['top'].set_visible(False)
-        ax_shape.spines['right'].set_visible(False)
-        ax_shape.spines['bottom'].set_visible(False)
-        ax_shape.set_xticks([])
-        ax_shape.set_yticks([0,1],['',''])
-        ax_shape.set_title(f'$\sigma$ = {round(best_sd[:9][1].iloc[c_tot],2)}',fontsize=30)
-        
-        nested_gs = GridSpecFromSubplotSpec(3, 1, subplot_spec=gs[row, colu])
-        ax1 = fig.add_subplot(nested_gs[0, 0])
-        ax1.plot(df_migra.iloc[-9:-3,col],color='red',linewidth=3)
-        configure_ax(ax1)
-        ax2 = fig.add_subplot(nested_gs[1, 0])
-        ax2.plot(df_fp.iloc[-9:-3,col],color='green',linewidth=3)
-        configure_ax(ax2)
-        ax3 = fig.add_subplot(nested_gs[2, 0])
-        ax3.plot(df_conf.iloc[-9:-3,col],color='orange',linewidth=3)
-        configure_ax(ax3)
-        
-        colu=colu+3
-        if colu==9:
-            row=row+2
-            colu=0
-        c_tot=c_tot+1
-    else:
-        pass
-        
-plt.axis('off')
-plt.tight_layout()
-plt.show()   
+# fig = plt.figure(figsize=(30, 18))
+# num_rows = 7
+# num_cols = 9
+# width_ratios = [0.75, 2, 0.5]*3
+# hei_ratio = [1,0.5]*3+[1]
+# gs = GridSpec(num_rows, num_cols, figure=fig, width_ratios=width_ratios,height_ratios=hei_ratio)
+# def configure_ax(ax):
+#     ax.set(xticks=[], yticks=[])
+#     ax.spines['top'].set_visible(False)
+#     ax.spines['right'].set_visible(False)
+#     ax.spines['bottom'].set_visible(False)
+#     ax.spines['left'].set_visible(False)
 
 
+# row=0
+# colu=0
+# c_tot=0
+# for col in best_sd[:9][0]:
+#     if (not (df_migra.iloc[-9:-3,col] == 0).all()) & (row<8) :
+#         shape = Shape()
+#         shape.set_shape(df_migra.iloc[-9:-3,col]) 
+#         shape_cov1 = Shape()
+#         shape_cov1.set_shape(df_fp.iloc[-9:-3,col]) 
+#         shape_cov2 = Shape()
+#         shape_cov2.set_shape(df_conf.iloc[-9:-3,col]) 
+#         shape_cov = [shape_cov1,shape_cov2]
+        
+#         find = finder_multi(data,cov,shape,shape_cov)
+#         find.find_patterns(min_d=3,select=True,metric='dtw')
+#         pred_ori = find.predict(horizon=3,plot=False,mode='mean')
+#         df_fill = pd.DataFrame([shape.values[-1],shape.values[-1],shape.values[-1]])
+#         df_fill= df_fill.T
+#         df_fill.columns = pred_ori.columns
+#         pred = pd.concat([df_fill,pred_ori],axis=0)
+#         pred.index = df_migra.iloc[-4:,col].index
+#         pred_ori = pred_ori*(df_migra.iloc[-9:-3,col].max()-df_migra.iloc[-9:-3,col].min())+df_migra.iloc[-9:-3,col].min()
+#         te = (df_migra.iloc[-9:-3,col] - df_migra.iloc[-9:-3,col].min()) / (df_migra.iloc[-9:-3,col].max()-df_migra.iloc[-9:-3,col].min())
+        
+#         std_l_fake = (pred.iloc[:, 2] - pred.iloc[:, 0])* np.sqrt(len(find.sequences)) / 1.96
+#         ax_shape =fig.add_subplot(gs[row, colu+1])
+#         ax_shape.plot(te,color='black',linewidth=3)
+#         ax_shape.plot(pred.iloc[:,0],color='red',linewidth=3)
+#         ax_shape.fill_between(pred.index,pred.iloc[:,0]-std_l_fake,pred.iloc[:,0]+std_l_fake,color='red',alpha=0.3)
+#         #ax_shape.set_ylim(-0.2,1.2)
+#         ax_shape.grid('y')
+#         ax_shape.spines['top'].set_visible(False)
+#         ax_shape.spines['right'].set_visible(False)
+#         ax_shape.spines['bottom'].set_visible(False)
+#         ax_shape.set_xticks([])
+#         ax_shape.set_yticks([0,1],['',''])
+#         ax_shape.set_title(f'$\sigma$ = {round(best_sd[:9][1].iloc[c_tot],2)}',fontsize=30)
+        
+#         nested_gs = GridSpecFromSubplotSpec(3, 1, subplot_spec=gs[row, colu])
+#         ax1 = fig.add_subplot(nested_gs[0, 0])
+#         ax1.plot(df_migra.iloc[-9:-3,col],color='red',linewidth=3)
+#         configure_ax(ax1)
+#         ax2 = fig.add_subplot(nested_gs[1, 0])
+#         ax2.plot(df_fp.iloc[-9:-3,col],color='green',linewidth=3)
+#         configure_ax(ax2)
+#         ax3 = fig.add_subplot(nested_gs[2, 0])
+#         ax3.plot(df_conf.iloc[-9:-3,col],color='orange',linewidth=3)
+#         configure_ax(ax3)
+        
+#         colu=colu+3
+#         if colu==9:
+#             row=row+2
+#             colu=0
+#         c_tot=c_tot+1
+#     else:
+#         pass
+        
+# plt.axis('off')
+# plt.tight_layout()
+# plt.show()   
 
 
-fig = plt.figure(figsize=(30, 18))
-num_rows = 7
-num_cols = 9
-width_ratios = [0.75, 2, 0.5]*3
-hei_ratio = [1,0.5]*3+[1]
-gs = GridSpec(num_rows, num_cols, figure=fig, width_ratios=width_ratios,height_ratios=hei_ratio)
-# Function to configure ax properties
-def configure_ax(ax):
-    ax.set(xticks=[], yticks=[])
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
-    ax.spines['left'].set_visible(False)
 
-# Plotting loop
-row=0
-colu=0
-c_tot=0
-for col in best_sd[-9:][0]:
-    if (not (df_migra.iloc[-9:-3,col] == 0).all()) & (row<8) :
-        shape = Shape()
-        shape.set_shape(df_migra.iloc[-9:-3,col]) 
-        shape_cov1 = Shape()
-        shape_cov1.set_shape(df_fp.iloc[-9:-3,col]) 
-        shape_cov2 = Shape()
-        shape_cov2.set_shape(df_conf.iloc[-9:-3,col]) 
-        shape_cov = [shape_cov1,shape_cov2]
+
+# fig = plt.figure(figsize=(30, 18))
+# num_rows = 7
+# num_cols = 9
+# width_ratios = [0.75, 2, 0.5]*3
+# hei_ratio = [1,0.5]*3+[1]
+# gs = GridSpec(num_rows, num_cols, figure=fig, width_ratios=width_ratios,height_ratios=hei_ratio)
+# # Function to configure ax properties
+# def configure_ax(ax):
+#     ax.set(xticks=[], yticks=[])
+#     ax.spines['top'].set_visible(False)
+#     ax.spines['right'].set_visible(False)
+#     ax.spines['bottom'].set_visible(False)
+#     ax.spines['left'].set_visible(False)
+
+# # Plotting loop
+# row=0
+# colu=0
+# c_tot=0
+# for col in best_sd[-9:][0]:
+#     if (not (df_migra.iloc[-9:-3,col] == 0).all()) & (row<8) :
+#         shape = Shape()
+#         shape.set_shape(df_migra.iloc[-9:-3,col]) 
+#         shape_cov1 = Shape()
+#         shape_cov1.set_shape(df_fp.iloc[-9:-3,col]) 
+#         shape_cov2 = Shape()
+#         shape_cov2.set_shape(df_conf.iloc[-9:-3,col]) 
+#         shape_cov = [shape_cov1,shape_cov2]
         
-        find = finder_multi(data,cov,shape,shape_cov)
-        find.find_patterns(min_d=3,select=True,metric='dtw')
-        pred_ori = find.predict(horizon=3,plot=False,mode='mean')
-        df_fill = pd.DataFrame([shape.values[-1],shape.values[-1],shape.values[-1]])
-        df_fill= df_fill.T
-        df_fill.columns = pred_ori.columns
-        pred = pd.concat([df_fill,pred_ori],axis=0)
-        pred.index = df_migra.iloc[-4:,col].index
-        pred_ori = pred_ori*(df_migra.iloc[-9:-3,col].max()-df_migra.iloc[-9:-3,col].min())+df_migra.iloc[-9:-3,col].min()
-        te = (df_migra.iloc[-9:-3,col] - df_migra.iloc[-9:-3,col].min()) / (df_migra.iloc[-9:-3,col].max()-df_migra.iloc[-9:-3,col].min())
+#         find = finder_multi(data,cov,shape,shape_cov)
+#         find.find_patterns(min_d=3,select=True,metric='dtw')
+#         pred_ori = find.predict(horizon=3,plot=False,mode='mean')
+#         df_fill = pd.DataFrame([shape.values[-1],shape.values[-1],shape.values[-1]])
+#         df_fill= df_fill.T
+#         df_fill.columns = pred_ori.columns
+#         pred = pd.concat([df_fill,pred_ori],axis=0)
+#         pred.index = df_migra.iloc[-4:,col].index
+#         pred_ori = pred_ori*(df_migra.iloc[-9:-3,col].max()-df_migra.iloc[-9:-3,col].min())+df_migra.iloc[-9:-3,col].min()
+#         te = (df_migra.iloc[-9:-3,col] - df_migra.iloc[-9:-3,col].min()) / (df_migra.iloc[-9:-3,col].max()-df_migra.iloc[-9:-3,col].min())
         
-        std_l_fake = (pred.iloc[:, 2] - pred.iloc[:, 0])* np.sqrt(len(find.sequences)) / 1.96
-        ax_shape =fig.add_subplot(gs[row, colu+1])
-        ax_shape.plot(te,color='black',linewidth=3)
-        ax_shape.plot(pred.iloc[:,0],color='red',linewidth=3)
-        ax_shape.fill_between(pred.index,pred.iloc[:,0]-std_l_fake,pred.iloc[:,0]+std_l_fake,color='red',alpha=0.3)
-        ax_shape.grid('y')
-        ax_shape.spines['top'].set_visible(False)
-        ax_shape.spines['right'].set_visible(False)
-        ax_shape.spines['bottom'].set_visible(False)
-        ax_shape.set_xticks([])
-        ax_shape.set_yticks([0,1],['',''])
-        ax_shape.set_title(f'$\sigma$ = {round(best_sd[-9:][1].iloc[c_tot],2)}',fontsize=30)
+#         std_l_fake = (pred.iloc[:, 2] - pred.iloc[:, 0])* np.sqrt(len(find.sequences)) / 1.96
+#         ax_shape =fig.add_subplot(gs[row, colu+1])
+#         ax_shape.plot(te,color='black',linewidth=3)
+#         ax_shape.plot(pred.iloc[:,0],color='red',linewidth=3)
+#         ax_shape.fill_between(pred.index,pred.iloc[:,0]-std_l_fake,pred.iloc[:,0]+std_l_fake,color='red',alpha=0.3)
+#         ax_shape.grid('y')
+#         ax_shape.spines['top'].set_visible(False)
+#         ax_shape.spines['right'].set_visible(False)
+#         ax_shape.spines['bottom'].set_visible(False)
+#         ax_shape.set_xticks([])
+#         ax_shape.set_yticks([0,1],['',''])
+#         ax_shape.set_title(f'$\sigma$ = {round(best_sd[-9:][1].iloc[c_tot],2)}',fontsize=30)
         
-        nested_gs = GridSpecFromSubplotSpec(3, 1, subplot_spec=gs[row, colu])
-        ax1 = fig.add_subplot(nested_gs[0, 0])
-        ax1.plot(df_migra.iloc[-9:-3,col],color='red',linewidth=3)
-        configure_ax(ax1)
-        ax2 = fig.add_subplot(nested_gs[1, 0])
-        ax2.plot(df_fp.iloc[-9:-3,col],color='green',linewidth=3)
-        configure_ax(ax2)
-        ax3 = fig.add_subplot(nested_gs[2, 0])
-        ax3.plot(df_conf.iloc[-9:-3,col],color='orange',linewidth=3)
-        configure_ax(ax3)
+#         nested_gs = GridSpecFromSubplotSpec(3, 1, subplot_spec=gs[row, colu])
+#         ax1 = fig.add_subplot(nested_gs[0, 0])
+#         ax1.plot(df_migra.iloc[-9:-3,col],color='red',linewidth=3)
+#         configure_ax(ax1)
+#         ax2 = fig.add_subplot(nested_gs[1, 0])
+#         ax2.plot(df_fp.iloc[-9:-3,col],color='green',linewidth=3)
+#         configure_ax(ax2)
+#         ax3 = fig.add_subplot(nested_gs[2, 0])
+#         ax3.plot(df_conf.iloc[-9:-3,col],color='orange',linewidth=3)
+#         configure_ax(ax3)
         
-        colu=colu+3
-        if colu==9:
-            row=row+2
-            colu=0
-        c_tot=c_tot+1
-    else:
-        pass
+#         colu=colu+3
+#         if colu==9:
+#             row=row+2
+#             colu=0
+#         c_tot=c_tot+1
+#     else:
+#         pass
     
-plt.axis('off')
-plt.tight_layout()
-plt.show()   
+# plt.axis('off')
+# plt.tight_layout()
+# plt.show()   
 
 
 # world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
