@@ -8,7 +8,7 @@ Created on Tue Nov  7 13:31:17 2023
 import pandas as pd
 from shape import Shape,finder_multi,finder
 import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error,median_absolute_error,mean_absolute_error,mean_absolute_percentage_error
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import LSTM, Dense
@@ -26,6 +26,9 @@ import os
 import random
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 import matplotlib.font_manager as fm
+from tslearn.clustering import TimeSeriesKMeans
+from numpy.polynomial import Polynomial
+from scipy.stats import t
 
 
 ### Replication - set seed 
@@ -127,7 +130,6 @@ predictions = model.predict(X_lstm)
 predictions_original_scale = scaler.inverse_transform(predictions.T)
 predictions_original_scale[predictions_original_scale<0]=0
 
-
 df_migra = pd.read_csv('Data\Migra_new.csv',index_col=0,parse_dates=True)
 df_fp = pd.read_csv('Data\Food.csv',index_col=0,parse_dates=True)
 df_conf = pd.read_csv('Data\Conf.csv',index_col=0,parse_dates=True)
@@ -146,6 +148,7 @@ for i in range(len(data.columns)):
 pred_ar=pd.DataFrame(pred_ar)
 pred_ar=pred_ar.T
 
+pred_ar[pred_ar<0]=0
 
 
 
@@ -180,8 +183,6 @@ df_m = pd.DataFrame([best,obs_v,pred_v,df_migra.columns]).T
 
 df_test = pd.merge(df_test,df_m,left_on='ADM2_EN',right_on=3, how='left')
 df_test = df_test.rename(columns={0:'best',1:'obs',2:'pred'})
-
-
 
 
 ################################################ Figures 
@@ -592,7 +593,403 @@ for hor in range(3):
     plt.title(f'Horizon {hor + 1}',fontsize=40)
     plt.show()
 
+# =============================================================================
+# Exploration Response Reviewers 
+# =============================================================================
 
+### Horizon of forecast 
+
+pred_hor = pred_tot.copy()
+pred_hor = pd.concat(pred_hor)
+ratio_1_h=[]
+ratio_2_h=[]
+ratio_1_h_std=[]
+ratio_2_h_std=[]
+for i in range(3):
+    squared_errors_lstm = (predictions_original_scale[i, :] - df_migra.iloc[-3+i, :])**2
+    squared_errors_sf = (np.array(pred_hor.loc[i,'Prediction']) - df_migra.iloc[-3+i, :])**2
+    squared_errors_ar = (np.array(pred_ar.iloc[i, :]) - df_migra.iloc[-3+i,:])**2
+    mse_lstm_h = mean_squared_error(predictions_original_scale[i,:], df_migra.iloc[-3+i,:])
+    mse_sf_h = mean_squared_error(pred_hor.loc[i, 'Prediction'], df_migra.iloc[-3+i,:])
+    mse_ar_h = mean_squared_error(pred_ar.iloc[i,:], df_migra.iloc[-3+i,:])
+    ratio_1_h.append(np.log((mse_lstm_h+1)/(mse_sf_h+1)))
+    ratio_2_h.append(np.log((mse_ar_h+1)/(mse_sf_h+1)))
+    ratio_1_h_std.append(np.log((squared_errors_lstm+1)/(squared_errors_sf+1)).std())
+    ratio_2_h_std.append(np.log((squared_errors_ar+1)/(squared_errors_sf+1)).std())
+
+colors = [(0.512, 0.512, 0.512),(0.294, 0.294, 0.294),(0.737, 0.737, 0.737)]  # Blue, Green, Red
+ci_low_1=[]
+ci_low_2=[]
+ci_high_1=[]
+ci_high_2=[]
+for i in range(3):
+    ci_low_1.append(ratio_1_h[i]-(1.96*ratio_1_h_std[i]/np.sqrt(76)))
+    ci_high_1.append(ratio_1_h[i]+(1.96*ratio_1_h_std[i]/np.sqrt(76)))
+    ci_low_2.append(ratio_2_h[i]-(1.96*ratio_2_h_std[i]/np.sqrt(76)))
+    ci_high_2.append(ratio_2_h[i]+(1.96*ratio_2_h_std[i]/np.sqrt(76)))
+    
+    
+plt.figure(figsize=(10,8))    
+plt.plot([-0.05,0.95,1.95], ratio_1_h, marker='o', color=colors[1],markersize=10,label='LSTM')
+plt.plot([0.05,1.05,2.05], ratio_2_h, marker='o', color=colors[2],markersize=10,label='AR')
+plt.vlines([-0.05,0.95,1.95], ci_low_1, ci_high_1, colors=colors[1], linestyles='solid',linewidth=2)
+plt.vlines([0.05,1.05,2.05], ci_low_2, ci_high_2, colors=colors[2], linestyles='solid',linewidth=2)
+plt.xticks([0, 1, 2], ['h=1', 'h=2','h=3'],fontsize=25)
+plt.axhline(0,linestyle='--',color='black')
+plt.yticks(fontsize=32)
+plt.legend(fontsize=25)
+plt.xlim(-0.4,2.4)
+plt.title('MSE Log Ratio per Forecast Horizon',fontsize=30)
+plt.show()
+
+
+### Table with MAPE, RMSE
+
+mse_lstm=[]
+mse_sf=[]
+mse_ar=[]
+mape_lstm=[]
+mape_sf=[]
+mape_ar=[]
+mappe_lstm=[]
+mappe_sf=[]
+mappe_ar=[]
+mapppe_lstm=[]
+mapppe_sf=[]
+mapppe_ar=[]
+for i in range(76):
+    mse_lstm.append(mean_squared_error(predictions_original_scale[:,i],df_migra.iloc[-3:,i],squared=False))
+    mse_sf.append(mean_squared_error(pred_tot[i].iloc[:,0],df_migra.iloc[-3:,i],squared=False))
+    mse_ar.append(mean_squared_error(pred_ar.iloc[:,i],df_migra.iloc[-3:,i],squared=False))
+    mape_lstm.append(median_absolute_error(df_migra.iloc[-3:,i],predictions_original_scale[:,i]))
+    mape_sf.append(median_absolute_error(df_migra.iloc[-3:,i],pred_tot[i].iloc[:,0]))
+    mape_ar.append(median_absolute_error(df_migra.iloc[-3:,i],pred_ar.iloc[:,i]))
+    mappe_lstm.append(mean_absolute_percentage_error(df_migra.iloc[-3:,i],predictions_original_scale[:,i]))
+    mappe_sf.append(mean_absolute_percentage_error(df_migra.iloc[-3:,i],pred_tot[i].iloc[:,0]))
+    mappe_ar.append(mean_absolute_percentage_error(df_migra.iloc[-3:,i],pred_ar.iloc[:,i]))
+    mapppe_lstm.append(mean_absolute_error(df_migra.iloc[-3:,i],predictions_original_scale[:,i]))
+    mapppe_sf.append(mean_absolute_error(df_migra.iloc[-3:,i],pred_tot[i].iloc[:,0]))
+    mapppe_ar.append(mean_absolute_error(df_migra.iloc[-3:,i],pred_ar.iloc[:,i]))
+# print(np.mean(mse_lstm),np.mean(mse_ar),np.mean(mse_sf))
+# print(np.mean(mape_lstm),np.mean(mape_ar),np.mean(mape_sf))
+# print(np.std(mse_lstm),np.std(mse_ar),np.std(mse_sf))
+# print(np.std(mape_lstm),np.std(mape_ar),np.std(mape_sf))
+
+# Calculate means and standard deviations
+mse_lstm_mean = np.mean(mse_lstm)
+mse_sf_mean = np.mean(mse_sf)
+mse_ar_mean = np.mean(mse_ar)
+mape_lstm_mean = np.mean(mape_lstm)
+mape_sf_mean = np.mean(mape_sf)
+mape_ar_mean = np.mean(mape_ar)
+mappe_lstm_mean = np.mean(mappe_lstm)
+mappe_sf_mean = np.mean(mappe_sf)
+mappe_ar_mean = np.mean(mappe_ar)
+mapppe_lstm_mean = np.mean(mapppe_lstm)
+mapppe_sf_mean = np.mean(mapppe_sf)
+mapppe_ar_mean = np.mean(mapppe_ar)
+
+mse_lstm_std = np.std(mse_lstm)
+mse_sf_std = np.std(mse_sf)
+mse_ar_std = np.std(mse_ar)
+mape_lstm_std = np.std(mape_lstm)
+mape_sf_std = np.std(mape_sf)
+mape_ar_std = np.std(mape_ar)
+mappe_lstm_std = np.std(mappe_lstm)
+mappe_sf_std = np.std(mappe_sf)
+mappe_ar_std = np.std(mappe_ar)
+mapppe_lstm_std = np.std(mapppe_lstm)
+mapppe_sf_std = np.std(mapppe_sf)
+mapppe_ar_std = np.std(mapppe_ar)
+
+# Calculate confidence intervals
+def confidence_interval(std, n=76):
+    return 1.96 * std / np.sqrt(n)
+
+mse_lstm_ci = confidence_interval(mse_lstm_std)
+mse_sf_ci = confidence_interval(mse_sf_std)
+mse_ar_ci = confidence_interval(mse_ar_std)
+mape_lstm_ci = confidence_interval(mape_lstm_std)
+mape_sf_ci = confidence_interval(mape_sf_std)
+mape_ar_ci = confidence_interval(mape_ar_std)
+mappe_lstm_ci = confidence_interval(mappe_lstm_std)
+mappe_sf_ci = confidence_interval(mappe_sf_std)
+mappe_ar_ci = confidence_interval(mappe_ar_std)
+mapppe_lstm_ci = confidence_interval(mapppe_lstm_std)
+mapppe_sf_ci = confidence_interval(mapppe_sf_std)
+mapppe_ar_ci = confidence_interval(mapppe_ar_std)
+latex_table = f"""
+\\begin{{table}}[h!]
+\\centering
+\\begin{{tabular}}{{|c|c|c|c|}}
+\\hline
+Metric & LSTM & ARIMA & ShapeFinder \\\\
+\\hline
+RMSE & {mse_lstm_mean:.2f} ± {mse_lstm_ci:.2f} & {mse_ar_mean:.2f} ± {mse_ar_ci:.2f} & {mse_sf_mean:.2f} ± {mse_sf_ci:.2f} \\\\
+\\hline
+Median Absolute Error & {mape_lstm_mean:.2f} ± {mape_lstm_ci:.2f} & {mape_ar_mean:.2f} ± {mape_ar_ci:.2f} & {mape_sf_mean:.2f} ± {mape_sf_ci:.2f} \\\\
+\\hline
+MAPE & {mappe_lstm_mean:.2e} ± {mappe_lstm_ci:.2e} & {mappe_ar_mean:.2e} ± {mappe_ar_ci:.2e} & {mappe_sf_mean:.2e} ± {mappe_sf_ci:.2e} \\\\
+\\hline
+MAE & {mapppe_lstm_mean:.2f} ± {mapppe_lstm_ci:.2f} & {mapppe_ar_mean:.2f} ± {mapppe_ar_ci:.2f} & {mapppe_sf_mean:.2f} ± {mapppe_sf_ci:.2f} \\\\
+\\end{{tabular}}
+\\caption{{Mean and 95% Confidence Interval for RMSE and Median Absolute Error for different models}}
+\\label{{table:metrics}}
+\\end{{table}}
+"""
+print(latex_table)
+
+
+######### Where we are doing good bad ? Covariates shape ? 
+### Migra
+df_clus=[]
+
+ind_keep=[]
+for i in range(76):
+    if (df_migra.iloc[-9:-3,i]==0).all()==False:
+        ind_keep.append(i)
+df_why=model_no_z.loc[ind_keep]
+ts_seq_l=[]
+suite = []
+for i in ind_keep:
+    ts_seq_l.append((df_migra.iloc[-9:-3,i] - df_migra.iloc[-9:-3,i].min())/(df_migra.iloc[-9:-3,i].max() - df_migra.iloc[-9:-3,i].min()))
+    suite.append((df_migra.iloc[-3:,i] - df_migra.iloc[-9:-3,i].min())/(df_migra.iloc[-9:-3,i].max() - df_migra.iloc[-9:-3,i].min()))
+    
+ts_seq_l=np.array(ts_seq_l)
+ts_seq_l=ts_seq_l.reshape(len(ts_seq_l),6,1)
+model = TimeSeriesKMeans(n_clusters=10, metric="dtw",max_iter_barycenter=100,verbose=0,random_state=0)
+m_dba = model.fit(ts_seq_l)
+cl= m_dba.labels_
+print(pd.Series(cl).value_counts())
+suite=pd.DataFrame(suite)
+suite.index = df_why.index
+df_why=pd.concat([df_why,suite],axis=1)
+df_why['Clu_migra']=cl
+df_clus.append(pd.concat([df_why.groupby('Clu_migra').mean()[df_why.columns[:2]],df_why.groupby('Clu_migra').std()[df_why.columns[2:-1]]],axis=1))
+plt.plot(m_dba.cluster_centers_[9])
+plt.plot(m_dba.cluster_centers_[8])
+
+### Food Price
+ts_seq_l=[]
+for i in ind_keep:
+    ts_seq_l.append((df_fp.iloc[-9:-3,i] - df_fp.iloc[-9:-3,i].min())/(df_fp.iloc[-9:-3,i].max() - df_fp.iloc[-9:-3,i].min()))
+ts_seq_l=np.array(ts_seq_l)
+ts_seq_l=ts_seq_l.reshape(len(ts_seq_l),6,1)
+model = TimeSeriesKMeans(n_clusters=15, metric="euclidean",max_iter_barycenter=100,verbose=0,random_state=0)
+m_dba = model.fit(ts_seq_l)
+cl= m_dba.labels_
+print(pd.Series(cl).value_counts())
+df_why['Clu_FP']=cl
+df_clus.append(pd.concat([df_why.groupby('Clu_FP').mean()[df_why.columns[:2]],df_why.groupby('Clu_FP').std()[df_why.columns[2:-2]]],axis=1))
+plt.plot(m_dba.cluster_centers_[12])
+
+### Conf
+ts_seq_l=[]
+for i in ind_keep:
+    if (df_conf.iloc[-9:-3,i]==0).all()==False:
+        ts_seq_l.append((df_conf.iloc[-9:-3,i] - df_conf.iloc[-9:-3,i].min())/(df_conf.iloc[-9:-3,i].max() - df_conf.iloc[-9:-3,i].min()))
+    else:
+        ts_seq_l.append(df_conf.iloc[-9:-3,i])
+ts_seq_l=np.array(ts_seq_l)
+ts_seq_l=ts_seq_l.reshape(len(ts_seq_l),6,1)
+model = TimeSeriesKMeans(n_clusters=10, metric="euclidean",max_iter_barycenter=100,verbose=0,random_state=0)
+m_dba = model.fit(ts_seq_l)
+cl= m_dba.labels_
+print(pd.Series(cl).value_counts())
+df_why['Clu_Conf']=cl
+df_clus.append(pd.concat([df_why.groupby('Clu_Conf').mean()[df_why.columns[:2]],df_why.groupby('Clu_Conf').std()[df_why.columns[2:-3]]],axis=1))
+plt.plot(m_dba.cluster_centers_[2])
+
+
+
+
+cov1=[]
+sd_cov1=[]
+cov2=[]
+sd_cov2=[]
+cov=[]
+sd_cov=[]
+for i in range(76):
+    cov1.append(df_migra.iloc[:,i].mean())
+    sd_cov1.append(df_migra.iloc[:,i].std())
+    cov2.append(df_fp.iloc[-9:-3,i].mean())
+    sd_cov2.append(df_fp.iloc[-9:-3,i].std())
+    cov.append(df_conf.iloc[-9:-3,i].mean())
+    sd_cov.append(df_conf.iloc[-9:-3,i].std())
+
+df_te = pd.DataFrame([cov1,sd_cov1,cov2,sd_cov2,cov,sd_cov]).T
+df_why2 = pd.concat([model_no_z,df_te.reset_index(drop=True)],axis=1)
+df_why2 = df_why2.loc[ind_keep]
+df_why2['Min'] = df_why2.iloc[:,:2].min(axis=1)
+df_why2['Mean'] = df_why2.iloc[:,:2].mean(axis=1)
+
+
+
+df_why2_plot = df_why2[df_why2[4]>0]
+df_why2_plot[4] = df_why2_plot[4]*6
+df_why2_plot[4]=np.log10(df_why2_plot[4])
+
+p_lstm = Polynomial.fit(df_why2_plot[4], df_why2_plot['ratio_1'], deg=2)
+p_arima = Polynomial.fit(df_why2_plot[4], df_why2_plot['ratio_2'], deg=2)
+x_vals = np.linspace(min(df_why2_plot[4]), max(df_why2_plot[4]), 500)
+y_lstm_fit = p_lstm(x_vals)
+y_arima_fit = p_arima(x_vals)
+residuals_lstm = df_why2_plot['ratio_1'] - p_lstm(df_why2_plot[4])
+residuals_arima = df_why2_plot['ratio_2'] - p_arima(df_why2_plot[4])
+se_lstm = np.sqrt(np.sum(residuals_lstm**2) / (len(df_why2_plot[4]) - 3))
+se_arima = np.sqrt(np.sum(residuals_arima**2) / (len(df_why2_plot[4]) - 3))
+t_val = t.ppf(0.975, df=len(df_why2_plot[4]) - 3)
+ci_lstm = t_val * se_lstm * np.sqrt(1/len(df_why2_plot[4]) + (x_vals - np.mean(df_why2_plot[4]))**2 / np.sum((df_why2_plot[4] - np.mean(df_why2_plot[4]))**2))
+ci_arima = t_val * se_arima * np.sqrt(1/len(df_why2_plot[4]) + (x_vals - np.mean(df_why2_plot[4]))**2 / np.sum((df_why2_plot[4] - np.mean(df_why2_plot[4]))**2))
+plt.figure(figsize=(10, 8))
+plt.scatter(df_why2_plot[4], df_why2_plot['ratio_1'], label='LSTM', color='#9270DB', s=100)
+plt.scatter(df_why2_plot[4], df_why2_plot['ratio_2'], label='ARIMA', color='#3597FF', s=100)
+plt.plot(x_vals, y_lstm_fit, color='#9270DB', linewidth=3)
+plt.plot(x_vals, y_arima_fit, color='#3597FF', linewidth=3)
+plt.fill_between(x_vals, y_lstm_fit - ci_lstm, y_lstm_fit + ci_lstm, color='#9270DB', alpha=0.3)
+plt.fill_between(x_vals, y_arima_fit - ci_arima, y_arima_fit + ci_arima, color='#3597FF', alpha=0.3)
+plt.axhline(0, linestyle='--', color='#153DA4', linewidth=2)
+plt.xlabel('Conflict Fatalities (log)', fontsize=24)
+plt.ylabel('Mse Log Ratio', fontsize=24)
+plt.xticks([0, 0.47, 1, 1.69], ['1', '3', '10', '50'], fontsize=20)
+plt.yticks(fontsize=20)
+plt.legend(fontsize=20)
+plt.show()
+
+
+
+p_lstm = Polynomial.fit(df_why2[2], df_why2['ratio_1'], deg=1)
+p_arima = Polynomial.fit(df_why2[2], df_why2['ratio_2'], deg=1)
+x_vals = np.linspace(min(df_why2[2]), max(df_why2[2]), 500)
+y_lstm_fit = p_lstm(x_vals)
+y_arima_fit = p_arima(x_vals)
+residuals_lstm = df_why2['ratio_1'] - p_lstm(df_why2[2])
+residuals_arima = df_why2['ratio_2'] - p_arima(df_why2[2])
+se_lstm = np.sqrt(np.sum(residuals_lstm**2) / (len(df_why2[2]) - 2))
+se_arima = np.sqrt(np.sum(residuals_arima**2) / (len(df_why2[2]) - 2))
+t_val = t.ppf(0.975, df=len(df_why2[2]) - 2)
+ci_lstm = t_val * se_lstm * np.sqrt(1/len(df_why2[2]) + (x_vals - np.mean(df_why2[2]))**2 / np.sum((df_why2[2] - np.mean(df_why2[2]))**2))
+ci_arima = t_val * se_arima * np.sqrt(1/len(df_why2[2]) + (x_vals - np.mean(df_why2[2]))**2 / np.sum((df_why2[2] - np.mean(df_why2[2]))**2))
+plt.figure(figsize=(10, 8))
+plt.scatter(df_why2[2], df_why2['ratio_1'], label='LSTM', color='#9270DB', s=100)
+plt.scatter(df_why2[2], df_why2['ratio_2'], label='ARIMA', color='#3597FF', s=100)
+plt.plot(x_vals, y_lstm_fit, color='#9270DB', linewidth=3)
+plt.plot(x_vals, y_arima_fit, color='#3597FF', linewidth=3)
+plt.fill_between(x_vals, y_lstm_fit - ci_lstm, y_lstm_fit + ci_lstm, color='#9270DB', alpha=0.3)
+plt.fill_between(x_vals, y_arima_fit - ci_arima, y_arima_fit + ci_arima, color='#3597FF', alpha=0.3)
+plt.axhline(0, linestyle='--', color='#153DA4', linewidth=2)
+plt.xlabel('Mean Food Price', fontsize=24)
+plt.ylabel('Mse Log Ratio', fontsize=24)
+plt.xticks(fontsize=20)
+plt.yticks(fontsize=20)
+plt.legend(fontsize=20)
+plt.show()
+
+
+
+
+df_te.index = df_migra.columns
+df_test.index = df_test['ADM2_EN']
+columns = df_test.columns.tolist()
+for i, col in enumerate(columns):
+    if col == 3:
+        columns[i] = 'name'
+        break
+
+df_test.columns = columns
+df_test = pd.concat([df_test,df_te],axis=1)
+
+fig, axs = plt.subplots(figsize=(15, 10))
+df_test.plot(column=2, ax=axs, cmap='Blues', legend=False, legend_kwds={'bbox_to_anchor': (1, 1)}, missing_kwds={
+        "color": "white",
+        "edgecolor": "lightgrey",
+        "hatch": "///",
+        "label": "No migration",
+    })
+axs.set_xlabel('Longitude', fontsize=35)
+axs.set_ylabel('Latitude', fontsize=35)
+axs.tick_params(axis='both', which='both', labelsize=30)
+axs.spines['top'].set_visible(False)
+axs.spines['right'].set_visible(False)
+plt.tight_layout()
+plt.show()
+
+fig, axs = plt.subplots(figsize=(15, 10))
+df_test.plot(column=4, ax=axs, cmap='Blues', legend=False, legend_kwds={'bbox_to_anchor': (1, 1)}, missing_kwds={
+        "color": "white",
+        "edgecolor": "lightgrey",
+        "hatch": "///",
+        "label": "No migration",
+    },vmin=-1,vmax=5)
+axs.set_xlabel('Longitude', fontsize=35)
+axs.set_ylabel('Latitude', fontsize=35)
+axs.tick_params(axis='both', which='both', labelsize=30)
+axs.spines['top'].set_visible(False)
+axs.spines['right'].set_visible(False)
+plt.tight_layout()
+plt.show()
+
+
+
+###############  Weight 
+
+df_migra = pd.read_csv('Data\Migra_new.csv',index_col=0,parse_dates=True)
+df_fp = pd.read_csv('Data\Food.csv',index_col=0,parse_dates=True)
+df_conf = pd.read_csv('Data\Conf.csv',index_col=0,parse_dates=True)
+
+df_fp = df_fp.loc[:df_migra.index[-1],:]
+df_conf = df_conf.loc[:df_migra.index[-1],:]
+
+data = df_migra.iloc[:-9,:]
+cov=[df_fp,df_conf]
+pred_tot_sub_old=[]
+tot_weights=[[1.5,0.75,0.75],[0.75,1.5,0.75],[0.75,0.75,1.5],
+                [2,0.5,0.5],[0.5,2,0.5],[0.5,0.5,2],
+                [2,0,0],[0,2,0],[0,0,2]]
+for weights in tot_weights:
+    pred_tot_sub=[]
+    for col in range(76):
+        shape = Shape()
+        shape.set_shape(df_migra.iloc[-9:-3,col]) 
+        shape_cov1 = Shape()
+        shape_cov1.set_shape(df_fp.iloc[-9:-3,col]) 
+        shape_cov2 = Shape()
+        shape_cov2.set_shape(df_conf.iloc[-9:-3,col]) 
+        shape_cov = [shape_cov1,shape_cov2]
+        find = finder_multi(data,cov,shape,shape_cov)
+        find.find_patterns_weight(min_d=3,select=True,metric='dtw',weight=[2,0,0])
+        pred_ori = find.predict(horizon=3,plot=False,mode='mean')
+        df_fill = pd.DataFrame([shape.values[-1],shape.values[-1],shape.values[-1]])
+        df_fill= df_fill.T
+        df_fill.columns = pred_ori.columns
+        pred = pd.concat([df_fill,pred_ori],axis=0)
+        pred.index = df_migra.iloc[-4:,col].index
+        pred_ori = pred_ori*(df_migra.iloc[-9:-3,col].max()-df_migra.iloc[-9:-3,col].min())+df_migra.iloc[-9:-3,col].min()
+        pred_tot_sub.append(pred_ori)
+    pred_tot_sub_old.append(pred_tot_sub)
+
+plt.figure(figsize=(14,8))
+for k,mod in enumerate(pred_tot_sub_old):
+    mse_sf=[]
+    mse_sf2=[]
+    for i in range(76):
+        mse_sf.append(mean_squared_error(pred_tot[i].iloc[:,0],df_migra.iloc[-3:,i]))
+        mse_sf2.append(mean_squared_error(mod[i].iloc[:,0],df_migra.iloc[-3:,i]))
+    ser = np.log((pd.Series(mse_sf)+1)/(pd.Series(mse_sf2)+1))
+    low = ser.mean()-(1.96*ser.std()/np.sqrt(76))
+    high = ser.mean()+(1.96*ser.std()/np.sqrt(76))  
+    plt.scatter(k, ser.mean(), marker='o', color='black',s=150)
+    plt.vlines([k], low, high, colors='black', linestyles='solid',linewidth=3)
+plt.xticks([*range(9)], ['1.5,0.75,0.75', '0.75,1.5,0.75','0.75,0.75,1.5','2,0.5,0.5','0.5,2,0.5','0.5,0.5,2','Only Migration','Only Food Price','Only Conflict'],fontsize=25,rotation=45)
+plt.axhline(0,linestyle='--',color='black')
+plt.yticks(fontsize=25)
+plt.title('MSE Log Ratio with Different Weights',fontsize=30)
+plt.show() 
+
+
+plt.scatter(df_test[5],df_test['pred']-df_test['obs'])
+plt.yscale('log')
+plt.show()
 
 # =============================================================================
 # Not in the paper 

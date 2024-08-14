@@ -1072,5 +1072,166 @@ class finder_multi():
         else:
             return tot_seq
 
+    def find_patterns_weight(self, metric='euclidean', min_d=0.5, dtw_sel=0, select=True,weight=None):
+        """
+        Finds custom patterns in the given dataset using the interactive shape finder.
+    
+        Args:
+            metric (str, optional): The distance metric to use for shape matching. 'euclidean' or 'dtw'. Defaults to 'euclidean'.
+            min_d (float, optional): The minimum distance threshold for a matching sequence. Defaults to 0.5.
+            dtw_sel (int, optional): The window size variation for dynamic time warping (Only for 'dtw' mode). Defaults to 0.
+            select (bool, optional): Whether to include overlapping patterns. Defaults to True.
+        """
+        # Clear any previously stored sequences
+        self.sequences = []
+        self.sequences_cov = []
+        
+        # Check if dtw_sel is zero when metric is 'euclidean'
+        if metric=='euclidean':
+            dtw_sel=0
+        if weight==None:
+            weight=[1]+[1]*(len(self.Shape_cov))
+        # Convert custom shape values to a pandas Series and normalize it
+        seq1 = pd.Series(data=self.Shape.values)
+        if seq1.var() != 0.0:
+            seq1 = (seq1 - seq1.min()) / (seq1.max() - seq1.min())
+        seq1 = np.array(seq1)
+        
+        seq1_cov=[]
+        for i in self.Shape_cov:
+            val = pd.Series(i.values)
+            if val.var() != 0.0:
+                i_n = (val - val.min()) / (val.max() - val.min())
+            seq1_cov.append(np.array(i_n))
+        # Initialize the list to store the found sequences that match the custom shape
+        tot = []
+        
+        for col in self.data.columns:
+            # try:
+            for time in self.data.loc[:,col].index:
+                flag=False
+                if dtw_sel == 0:
+                    # Loop through the testing sequence
+                    if len(self.data.loc[time:,col].iloc[:len(seq1)])==len(seq1):
+                        seq2 = self.data.loc[time:,col].iloc[:len(seq1)]
+                        last_d=seq2.index[-1]
+                        seq2 = (seq2 - seq2.min()) / (seq2.max() - seq2.min())
+                        # try:
+                        if metric == 'euclidean':
+                            # Calculate the Euclidean distance between the custom shape and the current window
+                            dist = ed.distance(seq1, seq2)*weight[0]
+                        elif metric == 'dtw':
+                            # Calculate the Dynamic Time Warping distance between the custom shape and the current window
+                            dist = dtw.distance(seq1, seq2)*weight[0]
+                        c_cov=0    
+                        for cov_shape in seq1_cov:
+                            seq_cov = self.cov[c_cov].loc[:last_d,col].iloc[-len(cov_shape):]
+                            if len(seq_cov)!=len(seq1_cov[c_cov]):
+                                flag=True
+                            seq_cov = (seq_cov - seq_cov.min()) / (seq_cov.max() - seq_cov.min())
+                            if metric == 'euclidean':
+                                # Calculate the Euclidean distance between the custom shape and the current window
+                                dist = dist + ed.distance(cov_shape, seq_cov)*weight[1+c_cov]
+                            elif metric == 'dtw':
+                                # Calculate the Dynamic Time Warping distance between the custom shape and the current window
+                                dist = dist + dtw.distance(cov_shape, seq_cov)*weight[1+c_cov]
+                            c_cov += 1
+                        if (dist<min_d) & (flag==False):    
+                            tot.append([last_d,col,dist, self.Shape.window,0])
+                            
+                        # except:
+                        #     # Ignore any exceptions (e.g., divide by zero)
+                        #     pass
+                else:
+                    # Loop through the range of window size variations (dtw_sel)
+                    for lop in range(int(-dtw_sel), int(dtw_sel) + 1):
+                        if len(self.data.loc[time:,col].iloc[:len(seq1)+ lop])==len(seq1)+ lop:
+                            seq2 = self.data.loc[time:,col].iloc[:len(seq1)+ lop]
+                            last_d=seq2.index[-1]
+                            seq2 = (seq2 - seq2.min()) / (seq2.max() - seq2.min())
+                            dist = dtw.distance(seq1, seq2)*weight[0]
+                            c_cov=0    
+                            for cov_shape in seq1_cov:
+                                seq_cov = self.cov[c_cov].loc[:last_d,col].iloc[-(len(cov_shape)+lop):]
+                                seq_cov = (seq_cov - seq_cov.min()) / (seq_cov.max() - seq_cov.min())
+                                if len(seq_cov)!=len(seq1_cov[c_cov])+lop:
+                                    flag=True
+                                dist = dist + dtw.distance(cov_shape, seq_cov)*weight[1+c_cov]
+                                c_cov += 1
+                            if (dist<min_d) & (flag==False):       
+                                tot.append([last_d,col, dist, self.Shape.window,lop])
+            # except:
+            #     pass
+        tot=pd.DataFrame(tot)               
+        s1=[]
+        s_c=[[] for _ in range(len(self.Shape_cov))]
+        if len(tot) > 0:
+            for ca in range(len(tot)):
+                s1.append((self.data.loc[:tot.iloc[ca,0],tot.iloc[ca,1]].iloc[-tot.iloc[ca,3]+tot.iloc[ca,4]:],tot.iloc[ca,2]))
+                for num in range(len(self.Shape_cov)):
+                    s_c[num].append(self.cov[num].loc[:tot.iloc[ca,0],tot.iloc[ca,1]].iloc[-self.Shape_cov[num].window+tot.iloc[ca,4]:])
+            
+            if select:
+                # Create a dictionary to store lists of Series by name
+                series_dict = {}
+                kept = []
+            
+                # Iterate through the data list
+                for idx, (series, value) in enumerate(s1):
+                    series_name = series.name
+            
+                    # Check if there are any Series with the same name in the dictionary
+                    if series_name in series_dict:
+                        # Get the list of series and values associated with this name
+                        series_values = series_dict[series_name]
+                        index_set = set(series.index)
+                        existing_flag = False
+            
+                        # Iterate over the list of (series, value) pairs
+                        for i, (existing_series, existing_value, existing_idx) in enumerate(series_values):
+                            # Calculate the intersection of indices
+                            intersection = index_set.intersection(existing_series.index)
+            
+                            # Check if the intersection is more than 50% of the existing series index
+                            if len(intersection) > 0.5 * len(existing_series.index):
+                                # Check the value, and if the new series is 'better', update the info
+                                if value < existing_value:
+                                    series_values[i] = (series, value, idx)
+                                    if existing_idx in kept:
+                                        kept.remove(existing_idx)
+                                    kept.append(idx)
+                                    existing_flag = True
+                                    break
+            
+                        # If the new series does not intersect more than 50% with any existing series, add it
+                        if not existing_flag:
+                            series_values.append((series, value, idx))
+                            kept.append(idx)
+            
+                        series_dict[series_name] = series_values  # Update the dictionary entry
+            
+                    else:
+                        # If the Series name is not in the dictionary, add it
+                        series_dict[series_name] = [(series, value, idx)]
+                        kept.append(idx)
+            
+                # Flatten the values from the dictionary and return them as a list
+                resu_l = [item for sublist in series_dict.values() for item in sublist]
+                s1 = [(resu[0], resu[1]) for resu in resu_l]  # Drop the index from the result
+                nb = 0
+                for sequ in s_c:
+                    f_seq = []
+                    c_cov = 0
+                    for sub in sequ:
+                        if c_cov in kept:
+                            f_seq.append(sub)
+                        c_cov += 1
+                    s_c[nb] = f_seq
+                    nb += 1
 
+            self.sequences = s1
+            self.sequences_cov = s_c
+            
+        else:
+            print('No patterns found')
 
