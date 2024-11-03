@@ -19,13 +19,11 @@ import geopandas as gpd
 from matplotlib.colors import LinearSegmentedColormap
 import tensorflow as tf
 import seaborn as sns
-from matplotlib.gridspec import GridSpec,GridSpecFromSubplotSpec
+from matplotlib.gridspec import GridSpec
 from scipy import stats
 from keras import backend as K
 import os
 import random
-from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
-import matplotlib.font_manager as fm
 from tslearn.clustering import TimeSeriesKMeans
 from numpy.polynomial import Polynomial
 from scipy.stats import t
@@ -594,10 +592,8 @@ for hor in range(3):
     plt.show()
 
 # =============================================================================
-# Exploration Response Reviewers 
+# Figure D1
 # =============================================================================
-
-### Horizon of forecast 
 
 pred_hor = pred_tot.copy()
 pred_hor = pd.concat(pred_hor)
@@ -740,8 +736,10 @@ MAE & {mapppe_lstm_mean:.2f} ± {mapppe_lstm_ci:.2f} & {mapppe_ar_mean:.2f} ± {
 print(latex_table)
 
 
-######### Where we are doing good bad ? Covariates shape ? 
-### Migra
+# =============================================================================
+# Figure 8 and 9 
+# =============================================================================
+
 df_clus=[]
 
 ind_keep=[]
@@ -766,8 +764,6 @@ suite.index = df_why.index
 df_why=pd.concat([df_why,suite],axis=1)
 df_why['Clu_migra']=cl
 df_clus.append(pd.concat([df_why.groupby('Clu_migra').mean()[df_why.columns[:2]],df_why.groupby('Clu_migra').std()[df_why.columns[2:-1]]],axis=1))
-plt.plot(m_dba.cluster_centers_[9])
-plt.plot(m_dba.cluster_centers_[8])
 
 ### Food Price
 ts_seq_l=[]
@@ -781,7 +777,7 @@ cl= m_dba.labels_
 print(pd.Series(cl).value_counts())
 df_why['Clu_FP']=cl
 df_clus.append(pd.concat([df_why.groupby('Clu_FP').mean()[df_why.columns[:2]],df_why.groupby('Clu_FP').std()[df_why.columns[2:-2]]],axis=1))
-plt.plot(m_dba.cluster_centers_[12])
+
 
 ### Conf
 ts_seq_l=[]
@@ -798,7 +794,7 @@ cl= m_dba.labels_
 print(pd.Series(cl).value_counts())
 df_why['Clu_Conf']=cl
 df_clus.append(pd.concat([df_why.groupby('Clu_Conf').mean()[df_why.columns[:2]],df_why.groupby('Clu_Conf').std()[df_why.columns[2:-3]]],axis=1))
-plt.plot(m_dba.cluster_centers_[2])
+
 
 
 
@@ -829,6 +825,10 @@ df_why2_plot = df_why2[df_why2[4]>0]
 df_why2_plot[4] = df_why2_plot[4]*6
 df_why2_plot[4]=np.log10(df_why2_plot[4])
 
+# =============================================================================
+# Figure 9a
+# =============================================================================
+
 p_lstm = Polynomial.fit(df_why2_plot[4], df_why2_plot['ratio_1'], deg=2)
 p_arima = Polynomial.fit(df_why2_plot[4], df_why2_plot['ratio_2'], deg=2)
 x_vals = np.linspace(min(df_why2_plot[4]), max(df_why2_plot[4]), 500)
@@ -856,6 +856,9 @@ plt.yticks(fontsize=20)
 plt.legend(fontsize=20)
 plt.show()
 
+# =============================================================================
+# Figure 8a
+# =============================================================================
 
 
 p_lstm = Polynomial.fit(df_why2[2], df_why2['ratio_1'], deg=1)
@@ -886,7 +889,9 @@ plt.legend(fontsize=20)
 plt.show()
 
 
-
+# =============================================================================
+# Figure 9b
+# =============================================================================
 
 df_te.index = df_migra.columns
 df_test.index = df_test['ADM2_EN']
@@ -914,6 +919,11 @@ axs.spines['right'].set_visible(False)
 plt.tight_layout()
 plt.show()
 
+
+# =============================================================================
+# Figure 8b
+# =============================================================================
+
 fig, axs = plt.subplots(figsize=(15, 10))
 df_test.plot(column=4, ax=axs, cmap='Blues', legend=False, legend_kwds={'bbox_to_anchor': (1, 1)}, missing_kwds={
         "color": "white",
@@ -931,7 +941,10 @@ plt.show()
 
 
 
-###############  Weight 
+# =============================================================================
+# Figure D2
+# =============================================================================
+
 
 df_migra = pd.read_csv('Data\Migra_new.csv',index_col=0,parse_dates=True)
 df_fp = pd.read_csv('Data\Food.csv',index_col=0,parse_dates=True)
@@ -957,7 +970,7 @@ for weights in tot_weights:
         shape_cov2.set_shape(df_conf.iloc[-9:-3,col]) 
         shape_cov = [shape_cov1,shape_cov2]
         find = finder_multi(data,cov,shape,shape_cov)
-        find.find_patterns_weight(min_d=3,select=True,metric='dtw',weight=[2,0,0])
+        find.find_patterns_weight(min_d=3,select=True,metric='dtw',weight=weights)
         pred_ori = find.predict(horizon=3,plot=False,mode='mean')
         df_fill = pd.DataFrame([shape.values[-1],shape.values[-1],shape.values[-1]])
         df_fill= df_fill.T
@@ -985,11 +998,6 @@ plt.axhline(0,linestyle='--',color='black')
 plt.yticks(fontsize=25)
 plt.title('MSE Log Ratio with Different Weights',fontsize=30)
 plt.show() 
-
-
-plt.scatter(df_test[5],df_test['pred']-df_test['obs'])
-plt.yscale('log')
-plt.show()
 
 # =============================================================================
 # Not in the paper 
